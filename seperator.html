@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- <title>🔘🔘🔘 XXX 🔘🔘</title> -->
+  <!-- Removed favicon/tab icon -->
+  <link id="dynamic-favicon" rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text y='50%' x='50%' dominant-baseline='middle' text-anchor='middle' font-size='48'>🚀</text></svg>">
+  <style>
+    body {
+      font-family: monospace;
+      text-align: center;
+      margin-top: 100px;
+      background: #fff;
+      color: #222;
+    }
+
+    input[type="text"] {
+      padding: 10px;
+      font-size: 16px;
+      width: 300px;
+      margin-bottom: 10px;
+      background: #fff;
+      color: #222;
+      border: 1px solid #bbb;
+      border-radius: 4px;
+    }
+
+    .recent-labels {
+      display: inline-block;
+      text-align: left;
+      margin-top: 10px;
+    }
+
+    .label-item {
+      display: flex;
+      align-items: center;
+      background: #fff;
+      color: #222;
+      padding: 5px 10px;
+      margin: 3px 0;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid #bbb;
+      position: relative;
+    }
+
+    .label-item .remove-btn {
+      position: absolute;
+      right: -32px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: red;
+      font-weight: bold;
+      cursor: pointer;
+      outline: none;
+    }
+    .label-item .open-btn {
+      position: absolute;
+      right: -80px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: green;
+      font-weight: bold;
+      cursor: pointer;
+      outline: none;
+    }
+    .label-item .pin-btn {
+      position: absolute;
+      right: -128px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: orange;
+      font-weight: bold;
+      cursor: pointer;
+      outline: none;
+    }
+    .label-item.pinned {
+      border-color: orange;
+    }
+    .label-item .move-btn {
+      position: absolute;
+      right: -176px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: blue;
+      font-weight: bold;
+      cursor: pointer;
+      outline: none;
+      font-size: 12px;
+    }
+    .label-item .move-down-btn {
+      position: absolute;
+      right: -224px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: blue;
+      font-weight: bold;
+      cursor: pointer;
+      outline: none;
+      font-size: 12px;
+    }
+
+    .label-item span {
+      flex-grow: 1;
+    }
+
+    .remove-btn {
+      background: none;
+      border: none;
+      color: red;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #181a1b;
+        color: #e0e0e0;
+      }
+      input[type="text"] {
+        background: #181818;
+        color: #e0e0e0;
+        border: 1px solid #444;
+      }
+      .label-item {
+        background: #181818;
+        color: #e0e0e0;
+        border: 1px solid #333;
+      }
+    }
+
+    @media (prefers-color-scheme: light) {
+      body {
+        background: #fff;
+        color: #222;
+      }
+      input[type="text"] {
+        background: #fff;
+        color: #222;
+        border: 1px solid #bbb;
+      }
+      .label-item {
+        background: #fff;
+        color: #222;
+        border: 1px solid #bbb;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <label for="titleInput">Enter tab label:</label><br><br>
+  <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
+    <input type="text" id="titleInput" placeholder="Type and press Enter..." />
+    <button id="closeBtn" class="remove-btn" title="Clear history">❌</button>
+    <button id="animModeBtn" class="remove-btn" title="Change animation">🔄</button>
+  </div>
+
+  <div class="recent-labels" id="recentLabelsContainer"></div>
+
+  <script>
+    const input = document.getElementById('titleInput');
+    const container = document.getElementById('recentLabelsContainer');
+
+    // Stand-out animation patterns (excluded previous arrow pattern per request)
+    // width denotes number of symbols (code points) shown per frame
+    const ANIM_PATTERNS = [
+      // Single preferred pattern: extended traffic light cycle
+      // width increased to 5 to show at least 5 circles at once
+      { source: '🔴🟡🟢🟡🔴🟡🟢🟡', width: 5 }
+    ];
+    let currentPatternIndex = 0;
+    function nextPattern() {
+      currentPatternIndex = (currentPatternIndex + 1) % ANIM_PATTERNS.length;
+    }
+    function buildFrame(offset) {
+      const { source, width } = ANIM_PATTERNS[currentPatternIndex];
+      // Use code points to avoid slicing inside surrogate pairs for emojis
+      const symbols = Array.from(source);
+      const doubled = symbols.concat(symbols); // wrap around
+      const start = offset % symbols.length;
+      return doubled.slice(start, start + width).join('');
+    }
+    
+    // === FIX: Use unique ID per tab stored in URL hash ===
+    function getOrCreateTabId() {
+      let tabId = window.location.hash.slice(1); // remove #
+      if (!tabId) {
+        tabId = 'tab_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        // Update URL without reload
+        history.replaceState(null, '', window.location.pathname + '#' + tabId);
+      }
+      return tabId;
+    }
+    const TAB_ID = getOrCreateTabId();
+    const LABEL_KEY = 'tabLabel_' + TAB_ID; // Unique per tab!
+    const HISTORY_KEY = 'tabLabelHistory';
+    const PINS_KEY = 'tabLabelPinned';
+    let animInterval = null;
+    let animIndex = 0;
+    let currentLabel = '';
+
+    // Optional underline removed for clarity in vertical tabs
+    function formatLabel(str) {
+      return str; // keep plain for readability
+    }
+    // Unified animation (same when backgrounded; browser may still throttle)
+    const FAVICONS = ['❗️','‼️'];
+    let faviconIndex = 0;
+
+    function updateFavicon(emoji) {
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text y='50%' x='50%' dominant-baseline='middle' text-anchor='middle' font-size='48'>${emoji}</text></svg>`;
+      const link = document.getElementById('dynamic-favicon');
+      link.setAttribute('href', 'data:image/svg+xml,' + encodeURIComponent(svg));
+    }
+
+    function setTitleAnim(label) {
+      if (animInterval) clearInterval(animInterval);
+      animIndex = 0;
+      faviconIndex = 0;
+      const baseLabel = label ? formatLabel(label) : formatLabel('waiting');
+      animInterval = setInterval(() => {
+        document.title = `${buildFrame(animIndex)} ${baseLabel}`;
+        updateFavicon(FAVICONS[faviconIndex % FAVICONS.length]);
+        animIndex++;
+        faviconIndex++;
+      }, 90); // faster speed; note browsers may still throttle in background
+    }
+
+    function updateTitle(value) {
+      currentLabel = value;
+      if (value === '') {
+        localStorage.removeItem(LABEL_KEY);
+        setTitleAnim('');
+      } else {
+        localStorage.setItem(LABEL_KEY, value);
+        updateHistory(value);
+        setTitleAnim(value);
+      }
+    }
+
+    function updateHistory(newLabel) {
+      let history = JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+      if (!history.includes(newLabel)) {
+        history.unshift(newLabel);
+        // Adjusted history capacity to 15 items (was 25)
+        if (history.length > 15) history.pop();
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        renderHistory();
+      }
+    }
+
+    function removeFromHistory(labelToRemove) {
+      let history = JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+      history = history.filter(label => label !== labelToRemove);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      // Also remove from pins if present
+      let pins = JSON.parse(localStorage.getItem(PINS_KEY)) || [];
+      if (pins.includes(labelToRemove)) {
+        pins = pins.filter(l => l !== labelToRemove);
+        localStorage.setItem(PINS_KEY, JSON.stringify(pins));
+      }
+      renderHistory();
+    }
+
+    function togglePin(label) {
+      let pins = JSON.parse(localStorage.getItem(PINS_KEY)) || [];
+      if (pins.includes(label)) {
+        pins = pins.filter(l => l !== label);
+      } else {
+        // add to front for priority
+        pins.unshift(label);
+      }
+      localStorage.setItem(PINS_KEY, JSON.stringify(pins));
+      renderHistory();
+    }
+
+    function moveLabel(label, direction) { // direction: -1 up, 1 down
+      let history = JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+      const idx = history.indexOf(label);
+      if (idx === -1) return;
+      const newIdx = idx + direction;
+      if (newIdx < 0 || newIdx >= history.length) return;
+      const [item] = history.splice(idx, 1);
+      history.splice(newIdx, 0, item);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const history = JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+      const pins = JSON.parse(localStorage.getItem(PINS_KEY)) || [];
+      const pinnedSet = new Set(pins);
+      container.innerHTML = '';
+      // Use stored history order directly so manual reordering is preserved
+      const ordered = [...history];
+      ordered.forEach(label => {
+        const item = document.createElement('div');
+        item.className = 'label-item';
+        item.tabIndex = 0;
+        if (pinnedSet.has(label)) item.classList.add('pinned');
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'history-select';
+        checkbox.value = label;
+        checkbox.style.marginRight = '6px';
+
+        const span = document.createElement('span');
+        span.textContent = label;
+        span.onclick = () => {
+          input.value = label;
+          updateTitle(label);
+        };
+
+        // Enable Enter key on the list item to apply the label
+        item.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') {
+            input.value = label;
+            updateTitle(label);
+          }
+        });
+
+        // Add the close button visually outside the label item
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-btn';
+        removeBtn.textContent = '❌';
+        removeBtn.onclick = (e) => {
+          e.stopPropagation();
+          removeFromHistory(label);
+        };
+        removeBtn.tabIndex = -1;
+
+        const openBtn = document.createElement('button');
+        openBtn.className = 'open-btn';
+        openBtn.textContent = 'open';
+        openBtn.onclick = (e) => {
+          e.stopPropagation();
+          // Create new tab with fresh unique ID, then set the label
+          const newTabId = 'tab_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+          // Pre-store the label for the new tab
+          localStorage.setItem('tabLabel_' + newTabId, label);
+          window.open(window.location.pathname + '#' + newTabId, '_blank');
+        };
+        openBtn.tabIndex = -1;
+
+        const pinBtn = document.createElement('button');
+        pinBtn.className = 'pin-btn';
+        pinBtn.textContent = pinnedSet.has(label) ? 'unpin' : '📌';
+        pinBtn.onclick = (e) => {
+          e.stopPropagation();
+          togglePin(label);
+        };
+        pinBtn.tabIndex = -1;
+
+        const upBtn = document.createElement('button');
+        upBtn.className = 'move-btn';
+        upBtn.textContent = '▲';
+        upBtn.title = 'Move up';
+        upBtn.onclick = (e) => { e.stopPropagation(); moveLabel(label, -1); };
+        upBtn.tabIndex = -1;
+
+        const downBtn = document.createElement('button');
+        downBtn.className = 'move-down-btn';
+        downBtn.textContent = '▼';
+        downBtn.title = 'Move down';
+        downBtn.onclick = (e) => { e.stopPropagation(); moveLabel(label, 1); };
+        downBtn.tabIndex = -1;
+
+        item.appendChild(checkbox);
+        item.appendChild(span);
+        item.appendChild(pinBtn);
+        item.appendChild(upBtn);
+        item.appendChild(downBtn);
+        item.appendChild(openBtn);
+        item.appendChild(removeBtn);
+        container.appendChild(item);
+      });
+      // Append Open Selected button below last item each render
+      const openBtn = document.createElement('button');
+      openBtn.id = 'openSelectedBtn';
+      openBtn.textContent = 'Open Selected';
+      openBtn.style.display = 'block';
+      openBtn.style.marginTop = '8px';
+      openBtn.onclick = openSelected;
+      container.appendChild(openBtn);
+    }
+    // Add event for the close button to clear history
+    document.getElementById('closeBtn').onclick = () => {
+      localStorage.removeItem(HISTORY_KEY);
+      renderHistory();
+    };
+
+    // Cycle animation mode
+    document.getElementById('animModeBtn').onclick = () => {
+      nextPattern();
+      // restart animation with current label or placeholder
+      setTitleAnim(currentLabel);
+    };
+
+    // Removed visibility change mode switching per user request.
+
+    // Load saved label and history
+    // Each tab has unique ID in hash, so just load from unique localStorage key
+    const savedValue = localStorage.getItem(LABEL_KEY);
+    if (savedValue) {
+      input.value = savedValue;
+      updateTitle(savedValue);
+    } else {
+      setTitleAnim('');
+    }
+    renderHistory();
+
+    // Save on Enter key
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        const value = input.value.trim();
+        updateTitle(value);
+      }
+    });
+    // Open Selected logic with slight delays to reduce popup blocking
+    function openSelected() {
+      const checked = Array.from(document.querySelectorAll('.history-select:checked'));
+      if (!checked.length) return;
+      checked.forEach(cb => {
+        const label = cb.value;
+        const newTabId = 'tab_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        // Pre-store the label for the new tab
+        localStorage.setItem('tabLabel_' + newTabId, label);
+        const a = document.createElement('a');
+        a.href = window.location.pathname + '#' + newTabId;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+    }
+  </script>
+</body>
+</html>
