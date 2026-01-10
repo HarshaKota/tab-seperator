@@ -163,7 +163,6 @@
   <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
     <input type="text" id="titleInput" placeholder="Type and press Enter..." />
     <button id="closeBtn" class="remove-btn" title="Clear history">❌</button>
-    <button id="animModeBtn" class="remove-btn" title="Change animation">🔄</button>
   </div>
 
   <div class="recent-labels" id="recentLabelsContainer"></div>
@@ -172,33 +171,12 @@
     const input = document.getElementById('titleInput');
     const container = document.getElementById('recentLabelsContainer');
 
-    // Stand-out animation patterns; width = number of code points per frame
-    const ANIM_PATTERNS = [
-      { source: '█░█░█░█░█░█░█░', width: 7 }, // high-contrast barber pole
-      { source: '▶▷▶▷▶▷▶▷▶▷', width: 6 },     // chevron flow
-      { source: '▁▂▃▄▅▆▇█▇▆▅▄▃▂▁', width: 8 }, // rising bars
-      { source: '══╬══╬══╬══╬', width: 7 }      // crossbar divider
-    ];
-    const PATTERN_KEY = 'tabAnimPatternIndex';
-    let currentPatternIndex = 0;
-    function persistPattern(index) {
-      localStorage.setItem(PATTERN_KEY, String(index));
-    }
-    function loadPattern() {
-      const saved = parseInt(localStorage.getItem(PATTERN_KEY), 10);
-      if (!Number.isNaN(saved) && saved >= 0 && saved < ANIM_PATTERNS.length) {
-        currentPatternIndex = saved;
-      }
-    }
-    function nextPattern() {
-      currentPatternIndex = (currentPatternIndex + 1) % ANIM_PATTERNS.length;
-      persistPattern(currentPatternIndex);
-    }
-    function buildFrame(offset) {
-      const { source, width } = ANIM_PATTERNS[currentPatternIndex];
-      // Use code points to avoid slicing inside surrogate pairs for emojis
+    const ACTIVE_PATTERN = { source: '▁▂▃▄▅▆▇█▇▆▅▄▃▂▁', width: 8 };
+    const INACTIVE_PATTERN = { source: '█▇▆▅▄▃▂▁', width: 5 };
+    function buildFrameWithPattern(pattern, offset) {
+      const { source, width } = pattern;
       const symbols = Array.from(source);
-      const doubled = symbols.concat(symbols); // wrap around
+      const doubled = symbols.concat(symbols);
       const start = offset % symbols.length;
       return doubled.slice(start, start + width).join('');
     }
@@ -239,14 +217,30 @@
       if (animInterval) clearInterval(animInterval);
       animIndex = 0;
       faviconIndex = 0;
-      const baseLabel = label ? formatLabel(label) : formatLabel('waiting');
+      const baseLabel = label ? formatLabel(label) : '';
+      const hidden = document.hidden;
+      const intervalMs = hidden ? 1000 : 90;
       animInterval = setInterval(() => {
-        document.title = `${buildFrame(animIndex)} ${baseLabel}`;
+        if (hidden) {
+          // For inactive: just flip between pattern and reversed, no scrolling
+          const frame = animIndex % 2 === 0
+            ? INACTIVE_PATTERN.source
+            : Array.from(INACTIVE_PATTERN.source).reverse().join('');
+          document.title = `${frame} ${baseLabel}`;
+        } else {
+          // For active: normal scrolling animation
+          const frame = buildFrameWithPattern(ACTIVE_PATTERN, animIndex);
+          document.title = `${frame} ${baseLabel}`;
+        }
         updateFavicon(FAVICONS[faviconIndex % FAVICONS.length]);
         animIndex++;
         faviconIndex++;
-      }, 90); // faster speed; note browsers may still throttle in background
+      }, intervalMs);
     }
+
+    document.addEventListener('visibilitychange', () => {
+      setTitleAnim(currentLabel);
+    });
 
     function updateTitle(value) {
       currentLabel = value;
@@ -412,18 +406,8 @@
       renderHistory();
     };
 
-    // Cycle animation mode
-    document.getElementById('animModeBtn').onclick = () => {
-      nextPattern();
-      // restart animation with current label or placeholder
-      setTitleAnim(currentLabel);
-    };
-
-    // Removed visibility change mode switching per user request.
-
-    // Load saved label, history, and preferred animation pattern
+    // Load saved label and history
     // Each tab has unique ID in hash, so just load from unique localStorage key for label
-    loadPattern();
     const savedValue = localStorage.getItem(LABEL_KEY);
     if (savedValue) {
       input.value = savedValue;
