@@ -172,16 +172,27 @@
     const input = document.getElementById('titleInput');
     const container = document.getElementById('recentLabelsContainer');
 
-    // Stand-out animation patterns (excluded previous arrow pattern per request)
-    // width denotes number of symbols (code points) shown per frame
+    // Stand-out animation patterns; width = number of code points per frame
     const ANIM_PATTERNS = [
-      // Single preferred pattern: extended traffic light cycle
-      // width increased to 5 to show at least 5 circles at once
-      { source: '🔴🟡🟢🟡🔴🟡🟢🟡', width: 5 }
+      { source: '█░█░█░█░█░█░█░', width: 7 }, // high-contrast barber pole
+      { source: '▶▷▶▷▶▷▶▷▶▷', width: 6 },     // chevron flow
+      { source: '▁▂▃▄▅▆▇█▇▆▅▄▃▂▁', width: 8 }, // rising bars
+      { source: '══╬══╬══╬══╬', width: 7 }      // crossbar divider
     ];
+    const PATTERN_KEY = 'tabAnimPatternIndex';
     let currentPatternIndex = 0;
+    function persistPattern(index) {
+      localStorage.setItem(PATTERN_KEY, String(index));
+    }
+    function loadPattern() {
+      const saved = parseInt(localStorage.getItem(PATTERN_KEY), 10);
+      if (!Number.isNaN(saved) && saved >= 0 && saved < ANIM_PATTERNS.length) {
+        currentPatternIndex = saved;
+      }
+    }
     function nextPattern() {
       currentPatternIndex = (currentPatternIndex + 1) % ANIM_PATTERNS.length;
+      persistPattern(currentPatternIndex);
     }
     function buildFrame(offset) {
       const { source, width } = ANIM_PATTERNS[currentPatternIndex];
@@ -410,8 +421,9 @@
 
     // Removed visibility change mode switching per user request.
 
-    // Load saved label and history
-    // Each tab has unique ID in hash, so just load from unique localStorage key
+    // Load saved label, history, and preferred animation pattern
+    // Each tab has unique ID in hash, so just load from unique localStorage key for label
+    loadPattern();
     const savedValue = localStorage.getItem(LABEL_KEY);
     if (savedValue) {
       input.value = savedValue;
