@@ -161,7 +161,7 @@
 
   <label for="titleInput">Enter tab label:</label><br><br>
   <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
-    <input type="text" id="titleInput" placeholder="Type and press Enter..." />
+    <input type="text" id="titleInput" placeholder="Type and press Enter..." maxlength="10" />
     <button id="closeBtn" class="remove-btn" title="Clear history">❌</button>
   </div>
 
@@ -171,8 +171,8 @@
     const input = document.getElementById('titleInput');
     const container = document.getElementById('recentLabelsContainer');
 
-    const ACTIVE_PATTERN = { source: '▁▂▃▄▅▆▇█▇▆▅▄▃▂▁', width: 8 };
-    const INACTIVE_PATTERN = { source: '█▇▆▅▄▃▂▁', width: 5 };
+    const ACTIVE_PATTERN = { source: '▁▂▃▄▅▆▇█▇▆▅▄▃▂▁', width: 6 };
+    const INACTIVE_PATTERN = { source: '█▇▆▅▄▃', width: 3 };
     function buildFrameWithPattern(pattern, offset) {
       const { source, width } = pattern;
       const symbols = Array.from(source);
@@ -243,6 +243,8 @@
     });
 
     function updateTitle(value) {
+      // Convert to uppercase
+      value = value.toUpperCase();
       currentLabel = value;
       if (value === '') {
         localStorage.removeItem(LABEL_KEY);
@@ -416,6 +418,11 @@
       setTitleAnim('');
     }
     renderHistory();
+
+    // Convert to uppercase as user types
+    input.addEventListener('input', (event) => {
+      input.value = input.value.toUpperCase();
+    });
 
     // Save on Enter key
     input.addEventListener('keydown', (event) => {
